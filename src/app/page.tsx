@@ -2,13 +2,7 @@
 
 import AuthButton from "./components/AuthButton";
 import { useAuth } from "./hooks/useAuth";
-import { use, useEffect } from "react";
-
-interface PunchRecord {
-  id: number;
-  time: string;
-  user: string;
-}
+import { useEffect } from "react";
 
 export default function Home() {
   const { isLoggedIn } = useAuth();

@@ -1,8 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Button, Link } from "@nextui-org/react";
-import { useEffect, useState } from 'react';
+import { Button } from "@nextui-org/react";
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../hooks/useAuth';
 
