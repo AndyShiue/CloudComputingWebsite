@@ -1,11 +1,11 @@
+// app/auth/callback/page.tsx
 'use client';
 
 import { useSearchParams, useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { Suspense, useEffect } from 'react';
 import axios from 'axios';
-import Cookies from 'js-cookie';
 
-export default function CallbackPage() {
+function InnerCallback() {
   const params = useSearchParams();
   const router = useRouter();
   const code   = params.get('code');
@@ -39,4 +39,12 @@ export default function CallbackPage() {
   }, [code, router]);
 
   return <p>正在登入中，請稍候…</p>;
+}
+
+export default function CallbackPage() {
+  return (
+    <Suspense fallback={<p>載入中…</p>}>
+      <InnerCallback/>
+    </Suspense>
+  );
 }
