@@ -2,6 +2,7 @@
 
 import { Button } from "@nextui-org/react";
 import { useEffect, useState } from "react";
+import { Scanner } from '@yudiel/react-qr-scanner';
 import AuthButton from "../components/AuthButton";
 import { useAuth } from "../hooks/useAuth";
 
@@ -26,9 +27,8 @@ export default function Profile() {
     }
   }, [isLoggedIn]);
 
-  const handlePunch = async () => {
+  const handlePunch = async (station: string) => {
     try {
-      // 發送打卡請求
       const response = await fetch('https://mfi04yjgvi.execute-api.us-east-1.amazonaws.com/prod/setRecordStart', {
         method: 'POST',
         headers: {
@@ -37,7 +37,8 @@ export default function Profile() {
         },
         body: JSON.stringify({
           userId: 'dummy123',
-          startStop: 'start'
+          startStop: 'start',
+          station: station
         })
       });
 
@@ -48,11 +49,10 @@ export default function Profile() {
         throw new Error('打卡失敗');
       }
 
-      // 更新本地記錄
       const newRecord = {
         id: records.length + 1,
         time: new Date().toLocaleString("zh-TW"),
-        user: "當前用戶",
+        user: `${station}打卡`,
       };
       setRecords([newRecord, ...records]);
     } catch (error) {
@@ -61,26 +61,80 @@ export default function Profile() {
     }
   };
 
+  const openRanking = () => {
+    alert('排行榜功能即將推出！');
+    // 未來可以導航到排行榜頁面
+    // window.location.href = "/ranking";
+  };
+
   return (
     <main className="min-h-screen p-4">
       {/* 頂部導航欄 */}
-      <nav className="fixed top-0 left-0 right-0 p-4 bg-white dark:bg-black shadow-md flex justify-end">
-        <div className="relative">
+      <nav className="fixed top-0 left-0 right-0 p-4 z-50 bg-white dark:bg-black shadow-md flex justify-between items-center">
+        {/* 左側排行榜按鈕 */}
+        <div className="w-24 flex justify-start">
+          <Button 
+            color="primary" 
+            variant="light"
+            onClick={openRanking}
+          >
+            排行榜
+          </Button>
+        </div>
+        
+        {/* 中央標題 */}
+        <h1 className="text-2xl font-bold text-center">打卡</h1>
+        
+        {/* 右側登入按鈕 */}
+        <div className="w-24 flex justify-end">
           <AuthButton />
         </div>
       </nav>
 
-      {/* 主要內容 */}
-      <div className="pt-16 flex flex-col items-center">
-        {/* 打卡按鈕 */}
-        <div className="my-8 relative">
+      {/* 主要內容，增加頂部間距 */}
+      <div className="pt-24 flex flex-col items-center">
+        {/* 掃描器 */}
+        <div className="w-full max-w-md mb-8">
+          <Scanner 
+            onScan={(result) => console.log(result)}
+            classNames={{
+              container: "w-full max-w-md mx-auto"
+            }}
+          />
+        </div>
+
+        {/* 文字提示 */}
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+            請選擇車站
+          </h2>
+        </div>
+
+        {/* 三個站點按鈕 */}
+        <div className="flex justify-center gap-4 mb-12">
           <Button 
             color="primary" 
             size="lg" 
-            className="text-2xl px-8 py-6"
-            onClick={handlePunch}
+            className="text-xl px-6 py-5"
+            onClick={() => handlePunch("第一站")}
           >
-            打卡
+            第一站
+          </Button>
+          <Button 
+            color="primary" 
+            size="lg" 
+            className="text-xl px-6 py-5"
+            onClick={() => handlePunch("第二站")}
+          >
+            第二站
+          </Button>
+          <Button 
+            color="primary" 
+            size="lg" 
+            className="text-xl px-6 py-5"
+            onClick={() => handlePunch("第三站")}
+          >
+            第三站
           </Button>
         </div>
 
