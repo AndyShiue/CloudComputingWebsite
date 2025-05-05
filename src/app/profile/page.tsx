@@ -32,6 +32,7 @@ export default function Profile() {
       const response = await fetch('https://mfi04yjgvi.execute-api.us-east-1.amazonaws.com/prod/setRecordStart', {
         method: 'POST',
         headers: {
+          'Authorization': `Bearer ${localStorage.getItem("id_token")}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
