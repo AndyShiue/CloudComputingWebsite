@@ -6,19 +6,19 @@ import { Scanner, IDetectedBarcode } from '@yudiel/react-qr-scanner';
 import AuthButton from "../components/AuthButton";
 import { useAuth } from "../hooks/useAuth";
 
+// 定義記錄類型
 interface PunchRecord {
-  id: number;
-  time: string;
-  user: string;
+  recordId: string;
+  userId: string;
+  startTime: string;
+  endTime: string | null;
+  startStop: string;
+  endStop: string | null;
 }
 
 export default function Profile() {
-  const [records, setRecords] = useState<PunchRecord[]>([
-    { id: 1, time: "2024-05-02 14:30:00", user: "張三" },
-    { id: 2, time: "2024-05-02 14:35:00", user: "李四" },
-    { id: 3, time: "2024-05-02 14:40:00", user: "王五" },
-  ]);
-  const isScanned = useRef<boolean>(false)
+  const [records, setRecords] = useState<PunchRecord[]>([]);
+  const isScanned = useRef<boolean>(false);
   const scannedStop = useRef<string>("");
 
   const { isLoggedIn } = useAuth();
@@ -26,18 +26,85 @@ export default function Profile() {
   useEffect(() => {
     if (isLoggedIn === false) {
       window.location.href = "/"; 
+    } else if (isLoggedIn) {
+      // 在用戶登入後自動載入記錄
+      loadUserRecords();
     }
   }, [isLoggedIn]);
+  
+  // 載入用戶打卡記錄
+  const loadUserRecords = async () => {
+    try {
+      const idToken = localStorage.getItem("id_token");
+      if (!idToken) return;
+      
+      const parseJwt = (token: string) => {
+        return JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+      };
+      
+      const userId = parseJwt(idToken).sub;
+      
+      const response = await fetch(`https://mfi04yjgvi.execute-api.us-east-1.amazonaws.com/prod/getRecordbyUser?userId=${userId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${idToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      const responseData = await response.json();
+      console.log('Records response:', responseData);
+      
+      if (responseData.body) {
+        try {
+          // 處理嵌套的JSON字符串
+          let recordsData: PunchRecord[] = [];
+          
+          if (typeof responseData.body === 'string') {
+            // 嘗試解析JSON字符串
+            const parsedBody = JSON.parse(responseData.body);
+            
+            // 檢查是否有records字段
+            if (parsedBody.records && Array.isArray(parsedBody.records)) {
+              recordsData = parsedBody.records;
+            }
+          }
+          
+          console.log('Parsed records:', recordsData);
+          
+          // 按時間排序，最新的記錄在前
+          recordsData.sort((a, b) => {
+            return new Date(b.startTime).getTime() - new Date(a.startTime).getTime();
+          });
+          
+          setRecords(recordsData);
+        } catch (error) {
+          console.error('解析記錄時出錯:', error);
+        }
+      }
+    } catch (error) {
+      console.error('載入記錄時出錯:', error);
+    }
+  };
 
   const handlePunch = async (stop: string) => {
+    fetch('https://mfi04yjgvi.execute-api.us-east-1.amazonaws.com/prod/showQRcodeStart', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem("id_token")}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        stopId: stop,
+      })
+    })
     isScanned.current = false;
-    scannedStop.current = stop; // TODO: Request
+    scannedStop.current = stop;
   };
 
   const openRanking = () => {
-    alert('排行榜功能即將推出！');
-    // 未來可以導航到排行榜頁面
-    // window.location.href = "/ranking";
+    // 導航到排行榜頁面
+    window.location.href = "/ranking";
   };
 
   // 處理掃描到的 UUID
@@ -50,47 +117,148 @@ export default function Profile() {
     isScanned.current = true;
 
     const uuid = (detectedCodes && detectedCodes.length > 0) ? detectedCodes[0].rawValue : "";
+    
+    if (!uuid) {
+      isScanned.current = false;
+      return;
+    }
+
+    if (!scannedStop.current) {
+      alert("請先選擇車站！");
+      isScanned.current = false;
+      return;
+    }
 
     try {
-
       const parseJwt = (token: string) => {
         return JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
       }
 
-      const idToken = localStorage.getItem("id_token")!;
-      const stop = scannedStop.current || alert("請先選擇車站！");
+      const idToken = localStorage.getItem("id_token");
+      if (!idToken) {
+        alert("請先登入！");
+        isScanned.current = false;
+        return;
+      }
+      
+      const userId = parseJwt(idToken).sub;
+      const stop = scannedStop.current;
+      const startTime = localStorage.getItem('start_time') || "";
+      const timespan = Date.now() - Number.parseInt(startTime);
 
-      const response = await fetch('https://mfi04yjgvi.execute-api.us-east-1.amazonaws.com/prod/setRecordStart', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${idToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId: parseJwt(idToken).sub,
-          startStop: stop,
-          uuid: uuid,
-        })
-      });
-
+      const response = (timespan && timespan <= 90 * 60 * 1000) ? 
+        await fetch('https://mfi04yjgvi.execute-api.us-east-1.amazonaws.com/prod/setRecordEnd', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${idToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userId,
+            endStop: stop,
+            uuid,
+          })
+        }) :
+        await fetch('https://mfi04yjgvi.execute-api.us-east-1.amazonaws.com/prod/setRecordStart', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${idToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userId,
+            startStop: stop,
+            uuid,
+          })
+        });
+      
       const responseData = await response.json();
-      console.log('Response:', responseData);
 
-      if (!response.ok) {
-        throw new Error('打卡失敗');
+      if (responseData.statusCode >= 300) {
+        throw new Error(JSON.stringify(responseData));
       }
 
-      const newRecord = {
-        id: records.length + 1,
-        time: new Date().toLocaleString("zh-TW"),
-        user: `${stop}打卡`,
-      };
-      setRecords([newRecord, ...records]);
+      if (localStorage.getItem('start_time')) {
+        localStorage.removeItem('start_time');
+      } else {
+        localStorage.setItem('start_time', '' + Date.now());
+      }
+
+      alert(`成功在 ${stop} 打卡！`);
+      
+      // 重新載入打卡記錄
+      await loadUserRecords();
+      
     } catch (error) {
       console.error('打卡錯誤:', error);
-      alert('打卡失敗，請稍後再試');
+      alert(`打卡失敗，請稍後再試: ${error}`);
+    } finally {
+      // 延遲重置掃描狀態，允許下一次掃描
+      setTimeout(() => {
+        isScanned.current = false;
+      }, 1500);
     }
   };
+
+  // 格式化時間戳
+  const formatTimestamp = (timestamp: string) => {
+    try {
+      // 嘗試直接解析日期字符串
+      const date = new Date(timestamp);
+      // 檢查日期是否有效
+      if (isNaN(date.getTime())) {
+        return timestamp;
+      }
+      return date.toLocaleString('zh-TW', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+    } catch {
+      return timestamp;
+    }
+  };
+
+  // 獲取今天、昨天和之前的記錄
+  const getGroupedRecords = () => {
+    if (!Array.isArray(records) || records.length === 0) {
+      return { today: [], yesterday: [], earlier: [] };
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    const result = {
+      today: [] as PunchRecord[],
+      yesterday: [] as PunchRecord[],
+      earlier: [] as PunchRecord[]
+    };
+    
+    records.forEach(record => {
+      const recordDate = new Date(record.startTime);
+      recordDate.setHours(0, 0, 0, 0);
+      
+      if (recordDate.getTime() === today.getTime()) {
+        result.today.push(record);
+      } else if (recordDate.getTime() === yesterday.getTime()) {
+        result.yesterday.push(record);
+      } else {
+        result.earlier.push(record);
+      }
+    });
+    
+    return result;
+  };
+
+  // 檢查是否有有效數據可以顯示
+  const hasRecordsToDisplay = Array.isArray(records) && records.length > 0;
+  const groupedRecords = getGroupedRecords();
 
   return (
     <main className="min-h-screen p-4">
@@ -118,6 +286,7 @@ export default function Profile() {
 
       {/* 主要內容，增加頂部間距 */}
       <div className="pt-24 flex flex-col items-center">
+        
         {/* 掃描器 */}
         <div className="w-full max-w-md mb-8">
           <Scanner 
@@ -144,7 +313,7 @@ export default function Profile() {
             className="text-xl px-6 py-5"
             onClick={() => handlePunch("stop1")}
           >
-            第一站
+            stop1
           </Button>
           <Button 
             color="primary" 
@@ -152,7 +321,7 @@ export default function Profile() {
             className="text-xl px-6 py-5"
             onClick={() => handlePunch("stop2")}
           >
-            第二站
+            stop2
           </Button>
           <Button 
             color="primary" 
@@ -160,24 +329,87 @@ export default function Profile() {
             className="text-xl px-6 py-5"
             onClick={() => handlePunch("stop3")}
           >
-            第三站
+            stop3
           </Button>
         </div>
 
         {/* 打卡記錄列表 */}
         <div className="w-full max-w-2xl">
           <h2 className="text-xl font-bold mb-4">打卡記錄</h2>
-          <div className="space-y-2">
-            {records.map((record) => (
-              <div
-                key={record.id}
-                className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg shadow flex justify-between items-center"
-              >
-                <span className="text-gray-600 dark:text-gray-300">{record.user}</span>
-                <span className="text-gray-400 dark:text-gray-500">{record.time}</span>
-              </div>
-            ))}
-          </div>
+          
+          {!hasRecordsToDisplay ? (
+            <div className="text-center p-6 bg-gray-50 dark:bg-gray-800 rounded-lg">
+              <p>暫無打卡記錄</p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {/* 今天的記錄 */}
+              {groupedRecords.today.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-semibold mb-2 text-gray-700 dark:text-gray-300">今天</h3>
+                  <div className="space-y-2">
+                    {groupedRecords.today.map((record) => (
+                      <div
+                        key={record.recordId}
+                        className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg shadow flex justify-between items-center"
+                      >
+                        <span className="text-gray-600 dark:text-gray-300">
+                          {record.startStop} - {record.endStop}
+                        </span>
+                        <span className="text-gray-400 dark:text-gray-500">
+                          {formatTimestamp(record.startTime)} - { record.endTime ? formatTimestamp(record.endTime) : ""}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* 昨天的記錄 */}
+              {groupedRecords.yesterday.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-semibold mb-2 text-gray-700 dark:text-gray-300">昨天</h3>
+                  <div className="space-y-2">
+                    {groupedRecords.yesterday.map((record) => (
+                      <div
+                        key={record.recordId}
+                        className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg shadow flex justify-between items-center"
+                      >
+                        <span className="text-gray-600 dark:text-gray-300">
+                          {record.startStop}
+                        </span>
+                        <span className="text-gray-400 dark:text-gray-500">
+                          {formatTimestamp(record.startTime)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* 更早的記錄 */}
+              {groupedRecords.earlier.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-semibold mb-2 text-gray-700 dark:text-gray-300">更早</h3>
+                  <div className="space-y-2">
+                    {groupedRecords.earlier.map((record) => (
+                      <div
+                        key={record.recordId}
+                        className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg shadow flex justify-between items-center"
+                      >
+                        <span className="text-gray-600 dark:text-gray-300">
+                          {record.startStop}
+                        </span>
+                        <span className="text-gray-400 dark:text-gray-500">
+                          {formatTimestamp(record.startTime)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </main>
