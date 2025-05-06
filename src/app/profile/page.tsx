@@ -1,8 +1,8 @@
 'use client'
 
 import { Button } from "@nextui-org/react";
-import { useEffect, useState } from "react";
-import { Scanner } from '@yudiel/react-qr-scanner';
+import { useEffect, useState, useRef } from "react";
+import { Scanner, IDetectedBarcode } from '@yudiel/react-qr-scanner';
 import AuthButton from "../components/AuthButton";
 import { useAuth } from "../hooks/useAuth";
 
@@ -18,6 +18,8 @@ export default function Profile() {
     { id: 2, time: "2024-05-02 14:35:00", user: "李四" },
     { id: 3, time: "2024-05-02 14:40:00", user: "王五" },
   ]);
+  const isScanned = useRef<boolean>(false)
+  const scannedStop = useRef<string>("");
 
   const { isLoggedIn } = useAuth();
 
@@ -27,18 +29,47 @@ export default function Profile() {
     }
   }, [isLoggedIn]);
 
-  const handlePunch = async (station: string) => {
+  const handlePunch = async (stop: string) => {
+    isScanned.current = false;
+    scannedStop.current = stop; // TODO: Request
+  };
+
+  const openRanking = () => {
+    alert('排行榜功能即將推出！');
+    // 未來可以導航到排行榜頁面
+    // window.location.href = "/ranking";
+  };
+
+  // 處理掃描到的 UUID
+  const handleScan = async (detectedCodes: IDetectedBarcode[]) => {
+    
+    if (isScanned.current) {
+      return;
+    }
+
+    isScanned.current = true;
+
+    const uuid = (detectedCodes && detectedCodes.length > 0) ? detectedCodes[0].rawValue : "";
+
     try {
+
+      const parseJwt = (token: string) => {
+        return JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+      }
+
+      const idToken = localStorage.getItem("id_token")!;
+      const stop = scannedStop.current || alert("請先選擇車站！");
+
       const response = await fetch('https://mfi04yjgvi.execute-api.us-east-1.amazonaws.com/prod/setRecordStart', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem("id_token")}`,
+          'Authorization': `Bearer ${idToken}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          userId: 'dummy123',
-          startStop: 'start',
-          station: station
+          userId: parseJwt(idToken).sub,
+          startStop: stop,
+          uuid: uuid,
         })
       });
 
@@ -52,19 +83,13 @@ export default function Profile() {
       const newRecord = {
         id: records.length + 1,
         time: new Date().toLocaleString("zh-TW"),
-        user: `${station}打卡`,
+        user: `${stop}打卡`,
       };
       setRecords([newRecord, ...records]);
     } catch (error) {
       console.error('打卡錯誤:', error);
       alert('打卡失敗，請稍後再試');
     }
-  };
-
-  const openRanking = () => {
-    alert('排行榜功能即將推出！');
-    // 未來可以導航到排行榜頁面
-    // window.location.href = "/ranking";
   };
 
   return (
@@ -96,7 +121,8 @@ export default function Profile() {
         {/* 掃描器 */}
         <div className="w-full max-w-md mb-8">
           <Scanner 
-            onScan={(result) => console.log(result)}
+            onScan={handleScan}
+            allowMultiple
             classNames={{
               container: "w-full max-w-md mx-auto"
             }}
@@ -116,7 +142,7 @@ export default function Profile() {
             color="primary" 
             size="lg" 
             className="text-xl px-6 py-5"
-            onClick={() => handlePunch("第一站")}
+            onClick={() => handlePunch("stop1")}
           >
             第一站
           </Button>
@@ -124,7 +150,7 @@ export default function Profile() {
             color="primary" 
             size="lg" 
             className="text-xl px-6 py-5"
-            onClick={() => handlePunch("第二站")}
+            onClick={() => handlePunch("stop2")}
           >
             第二站
           </Button>
@@ -132,7 +158,7 @@ export default function Profile() {
             color="primary" 
             size="lg" 
             className="text-xl px-6 py-5"
-            onClick={() => handlePunch("第三站")}
+            onClick={() => handlePunch("stop3")}
           >
             第三站
           </Button>
