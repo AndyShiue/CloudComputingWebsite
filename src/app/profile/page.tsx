@@ -144,10 +144,19 @@ export default function Profile() {
       const userId = parseJwt(idToken).sub;
       const stop = scannedStop.current;
       const startTime = localStorage.getItem('start_time') || "";
+      const lastStartStop = localStorage.getItem('last_start_stop') || "";
       const timespan = Date.now() - Number.parseInt(startTime);
 
-      const response = (timespan && timespan <= 90 * 60 * 1000) ? 
-        await fetch('https://mfi04yjgvi.execute-api.us-east-1.amazonaws.com/prod/setRecordEnd', {
+      // 檢查是否是終點站打卡，並且和起點站相同
+      if (timespan && timespan <= 90 * 60 * 1000) {
+        if (stop === lastStartStop) {
+          alert("起點站和終點站不能是同一個站點！");
+          isScanned.current = false;
+          return;
+        }
+        
+        // 終點站打卡
+        const response = await fetch('https://mfi04yjgvi.execute-api.us-east-1.amazonaws.com/prod/setRecordEnd', {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${idToken}`,
@@ -158,8 +167,24 @@ export default function Profile() {
             endStop: stop,
             uuid,
           })
-        }) :
-        await fetch('https://mfi04yjgvi.execute-api.us-east-1.amazonaws.com/prod/setRecordStart', {
+        });
+        
+        const responseData = await response.json();
+
+        if (responseData.statusCode >= 300) {
+          throw new Error(JSON.stringify(responseData));
+        }
+        
+        // 清除記錄起點站和時間的本地存儲
+        if (localStorage.getItem('start_time')) {
+          localStorage.removeItem('start_time');
+        } else {
+          localStorage.setItem('start_time', '' + Date.now());
+        }
+        localStorage.removeItem('last_start_stop');
+      } else {
+        // 起點站打卡
+        const response = await fetch('https://mfi04yjgvi.execute-api.us-east-1.amazonaws.com/prod/setRecordStart', {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${idToken}`,
@@ -171,17 +196,20 @@ export default function Profile() {
             uuid,
           })
         });
-      
-      const responseData = await response.json();
+        
+        const responseData = await response.json();
 
-      if (responseData.statusCode >= 300) {
-        throw new Error(JSON.stringify(responseData));
-      }
-
-      if (localStorage.getItem('start_time')) {
-        localStorage.removeItem('start_time');
-      } else {
-        localStorage.setItem('start_time', '' + Date.now());
+        if (responseData.statusCode >= 300) {
+          throw new Error(JSON.stringify(responseData));
+        }
+        
+        // 記錄起點站和時間
+        if (localStorage.getItem('start_time')) {
+          localStorage.removeItem('start_time');
+        } else {
+          localStorage.setItem('start_time', '' + Date.now());
+        }
+        localStorage.setItem('last_start_stop', stop);
       }
 
       alert(`成功在 ${stop} 打卡！`);
@@ -351,14 +379,20 @@ export default function Profile() {
                     {groupedRecords.today.map((record) => (
                       <div
                         key={record.recordId}
-                        className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg shadow flex justify-between items-center"
+                        className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg shadow"
                       >
-                        <span className="text-gray-600 dark:text-gray-300">
-                          {record.startStop} - {record.endStop}
-                        </span>
-                        <span className="text-gray-400 dark:text-gray-500">
-                          {formatTimestamp(record.startTime)} - { record.endTime ? formatTimestamp(record.endTime) : ""}
-                        </span>
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                              {record.startStop}{record.endStop ? ` - ${record.endStop}` : ""}
+                            </span>
+                          </div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                            {record.endTime 
+                              ? `${formatTimestamp(record.startTime)} - ${formatTimestamp(record.endTime)}` 
+                              : formatTimestamp(record.startTime)}
+                          </div>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -373,14 +407,20 @@ export default function Profile() {
                     {groupedRecords.yesterday.map((record) => (
                       <div
                         key={record.recordId}
-                        className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg shadow flex justify-between items-center"
+                        className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg shadow"
                       >
-                        <span className="text-gray-600 dark:text-gray-300">
-                          {record.startStop}
-                        </span>
-                        <span className="text-gray-400 dark:text-gray-500">
-                          {formatTimestamp(record.startTime)}
-                        </span>
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                              {record.startStop}{record.endStop ? ` - ${record.endStop}` : ""}
+                            </span>
+                          </div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                            {record.endTime 
+                              ? `${formatTimestamp(record.startTime)} - ${formatTimestamp(record.endTime)}` 
+                              : formatTimestamp(record.startTime)}
+                          </div>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -395,14 +435,18 @@ export default function Profile() {
                     {groupedRecords.earlier.map((record) => (
                       <div
                         key={record.recordId}
-                        className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg shadow flex justify-between items-center"
+                        className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg shadow"
                       >
-                        <span className="text-gray-600 dark:text-gray-300">
-                          {record.startStop}
-                        </span>
-                        <span className="text-gray-400 dark:text-gray-500">
-                          {formatTimestamp(record.startTime)}
-                        </span>
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                              {record.startStop}{record.endStop ? ` - ${record.endStop}` : ""}
+                            </span>
+                          </div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                            {formatTimestamp(record.startTime)}
+                          </div>
+                        </div>
                       </div>
                     ))}
                   </div>

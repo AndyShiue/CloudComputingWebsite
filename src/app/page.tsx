@@ -3,6 +3,7 @@
 import AuthButton from "./components/AuthButton";
 import { useAuth } from "./hooks/useAuth";
 import { useEffect } from "react";
+import Image from "next/image";
 
 export default function Home() {
   const { isLoggedIn } = useAuth();
@@ -23,8 +24,16 @@ export default function Home() {
       </nav>
 
       {/* 主要內容 */}
-      <div className="pt-16 flex flex-col items-center">
-        這裡是首頁內容
+      <div className="pt-16 flex flex-col items-center justify-center min-h-[80vh]">
+        <div className="relative w-64 h-64 md:w-80 md:h-80 mb-8">
+          <Image 
+            src="/bus_station_like.png"
+            alt="公車讚"
+            fill
+            style={{ objectFit: 'contain' }}
+            priority
+          />
+        </div>
       </div>
     </main>
   );
