@@ -291,7 +291,7 @@ export default function Profile() {
   return (
     <main className="min-h-screen p-4">
       {/* 頂部導航欄 */}
-      <nav className="fixed top-0 left-0 right-0 p-4 z-50 bg-gray-800 shadow-md flex justify-between items-center">
+      <nav className="fixed top-0 left-0 right-0 p-4 z-50 bg-white dark:bg-gray-800 shadow-md flex justify-between items-center">
         {/* 左側排行榜按鈕 */}
         <div className="w-24 flex justify-start">
           <Button 

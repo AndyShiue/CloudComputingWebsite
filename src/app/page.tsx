@@ -4,6 +4,7 @@ import AuthButton from "./components/AuthButton";
 import { useAuth } from "./hooks/useAuth";
 import { useEffect } from "react";
 import Image from "next/image";
+import Link from "next/link";
 
 export default function Home() {
   const { isLoggedIn } = useAuth();
@@ -17,18 +18,20 @@ export default function Home() {
   return (
     <div className="min-h-screen p-4">
       {/* 頂部導航欄 */}
-      <header className="fixed left-0 right-0 top-0 bg-gray-800 shadow-md">
-        <div className="w-full flex items-center justify-between py-4 px-0">
-          <div className="flex items-center ml-4">
-            <span className="text-xl font-bold text-white-400">公車讚</span>
+      <header className="fixed left-0 right-0 top-0 bg-white dark:bg-gray-800 shadow-md z-10">
+        <div className="container mx-auto flex items-center justify-between py-3 px-4 md:px-6">
+          <div className="flex items-center">
+            <Link href="/" className="flex items-center">
+              <span className="text-xl font-bold text-gray-800 dark:text-white hover:text-primary transition-colors">公車讚</span>
+            </Link>
           </div>
-          <div className="flex items-center mr-4">
+          <div className="flex items-center">
             <AuthButton />
           </div>
         </div>
       </header>
       {/* 主要內容 */}
-      <main className="pt-16 flex flex-col items-center justify-center min-h-[80vh]">
+      <main className="pt-20 flex flex-col items-center justify-center min-h-[80vh]">
         <div className="max-w-md text-center space-y-6">
           <div className="w-80 h-80 mx-auto relative">
             <Image 
